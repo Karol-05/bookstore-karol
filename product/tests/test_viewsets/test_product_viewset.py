@@ -15,8 +15,8 @@ class TestProductViewSet(APITestCase):
 
     def setUp(self):
         self.user = UserFactory()
-        token = Token.objects.create(user=self.user)  # added
-        token.save()  # added
+        token = Token.objects.create(user=self.user)
+        token.save()
 
         self.product = ProductFactory(
             title="pro controller",
@@ -24,29 +24,42 @@ class TestProductViewSet(APITestCase):
         )
 
     def test_get_all_product(self):
-        token = Token.objects.get(user__username=self.user.username)  # added
+        token = Token.objects.get(user__username=self.user.username)
         self.client.credentials(
-            HTTP_AUTHORIZATION="Token " + token.key)  # added
+            HTTP_AUTHORIZATION="Token " + token.key
+        )
         response = self.client.get(
-            reverse("product-list", kwargs={"version": "v1"}))
+            reverse("product-list", kwargs={"version": "v1"})
+        )
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        product_data = json.loads(response.content)
+        product_data = response.json()
 
-        self.assertEqual(product_data["results"]
-                         [0]["title"], self.product.title)
-        self.assertEqual(product_data["results"]
-                         [0]["price"], self.product.price)
-        self.assertEqual(product_data["results"]
-                         [0]["active"], self.product.active)
+        self.assertEqual(
+            product_data["results"][0]["title"],
+            self.product.title,
+        )
+        self.assertEqual(
+            product_data["results"][0]["price"],
+            self.product.price,
+        )
+        self.assertEqual(
+            product_data["results"][0]["active"],
+            self.product.active,
+        )
 
     def test_create_product(self):
         token = Token.objects.get(user__username=self.user.username)
-        self.client.credentials(HTTP_AUTHORIZATION="Token " + token.key)
+        self.client.credentials(
+            HTTP_AUTHORIZATION="Token " + token.key
+        )
         category = CategoryFactory()
         data = json.dumps(
-            {"title": "notebook", "price": 800.00,
-                "categories_id": [category.id]}
+            {
+                "title": "notebook",
+                "price": 800.00,
+                "categories_id": [category.id],
+            }
         )
 
         response = self.client.post(
@@ -55,9 +68,34 @@ class TestProductViewSet(APITestCase):
             content_type="application/json",
         )
 
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_201_CREATED,
+        )
 
         created_product = Product.objects.get(title="notebook")
 
         self.assertEqual(created_product.title, "notebook")
         self.assertEqual(created_product.price, 800.00)
+
+    def test_product_pagination(self):
+        token = Token.objects.get(user__username=self.user.username)
+        self.client.credentials(
+            HTTP_AUTHORIZATION="Token " + token.key
+        )
+
+        for i in range(5):
+            ProductFactory(title=f"product {i}")
+
+        response = self.client.get(
+            reverse("product-list", kwargs={"version": "v1"})
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        product_data = response.json()
+
+        self.assertEqual(product_data["count"], 6)
+        self.assertEqual(len(product_data["results"]), 5)
+        self.assertIsNotNone(product_data["next"])
+        self.assertIsNone(product_data["previous"])
